@@ -17,7 +17,9 @@ import stats
 import caldav
 import activity
 import jinja2ext
-import os 
+import os
+
+from api.v1 import bands
 
 config = {
   'webapp2_extras.auth': {
@@ -56,7 +58,7 @@ else:
         webapp2.Route('/<type:i>/<user_id:\d+>-<signup_token:.+>',
                       handler=login.InviteVerificationHandler, name='inviteverification'),
         webapp2.Route('/link_error', login.LinkErrorHandler, name='linkerror'),
-        webapp2.Route('/forgot', login.ForgotPasswordHandler, name='forgot'),                  
+        webapp2.Route('/forgot', login.ForgotPasswordHandler, name='forgot'),
         webapp2.Route('/password', login.SetPasswordHandler),
         webapp2.Route('/invitepassword', login.InviteVerificationHandler),
         webapp2.Route('/login_auto_old_token', login.AutoDeleteSignupTokenHandler),
@@ -114,7 +116,7 @@ else:
         webapp2.Route('/band_makeadmin', band.AdminMember),
         webapp2.Route('/band_makeoccasional', band.MakeOccasionalMember),
         webapp2.Route('/band_removemember', band.RemoveMember),
-        webapp2.Route('/band_admin.html', band.AdminPage),   
+        webapp2.Route('/band_admin.html', band.AdminPage),
         webapp2.Route('/band_get_member_list',band.GetMemberList),
         webapp2.Route('/band_nav.html',band.BandNavPage),
         webapp2.Route('/band_get_upcoming', band.GetUpcoming),
@@ -134,5 +136,6 @@ else:
         webapp2.Route('/generate_stats', stats.AutoGenerateStats),
         webapp2.Route('/cal/b/<bk:.+>', caldav.BandRequestHandler),
         webapp2.Route('/cal/m/<mk:.+>', caldav.MemberRequestHandler),
-        webapp2.Route('/calhelp', caldav.HelpHandler)
+        webapp2.Route('/calhelp', caldav.HelpHandler),
+        webapp2.Route('/api/v1/bands.json', bands.Index)
     ], config=config, debug=True)
