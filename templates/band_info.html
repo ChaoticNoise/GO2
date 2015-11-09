@@ -16,7 +16,7 @@
                 <br>
                 ({% trans %}a.k.a.{% endtrans %}&nbsp;{{ the_band.shortname }})
             {% endif %}
-        </div> 
+        </div>
     </div>
 
     <div class="row">
@@ -166,7 +166,7 @@
                             <div class="panel-title">
                                 {% trans %}Pending Members{% endtrans %} <span class="badge">{{the_pending_members|length}}</span>
                             </div>
-                        </div>        
+                        </div>
                         <div class="panel-body">
                             {% for m in the_pending_members %}
                             <div class="row">
@@ -180,16 +180,16 @@
                             </div>
                             {% endfor %}
                         </div>
-                    </div> <!-- panel -->        
+                    </div> <!-- panel -->
                 {% endif %}
-                
+
                 {% if the_invited_members %}
                     <div class="panel panel-default">
                         <div class="panel-heading">
                             <div class="panel-title">
                                 {% trans %}Invited Members{% endtrans %} <span class="badge">{{the_invited_members|length}}</span>
                             </div>
-                        </div>        
+                        </div>
                         <div class="panel-body">
                             {% for m in the_invited_members %}
                             <div class="row">
@@ -202,7 +202,7 @@
                             </div>
                             {% endfor %}
                         </div>
-                    </div> <!-- panel -->        
+                    </div> <!-- panel -->
                 {% endif %}
 
                 <div class="row">
@@ -228,7 +228,7 @@
                                 </div>
                             {% endif %}
                         </div>
-                    </div>        
+                    </div>
                     <div class="panel-body">
                         <div class="row">
                             <div class="col-md-12 col-md-offset-0" id="sectionlist">
@@ -245,12 +245,12 @@
                         </div>
                     </div>
                 </div> <!-- panel -->
-                        
+
                     </div>
                 </div>
 
-                {% if the_user_is_band_admin or the_user_is_superuser %}   
-                <div class="panel-group" id="accordion"> 
+                {% if the_user_is_band_admin or the_user_is_superuser %}
+                <div class="panel-group" id="accordion">
                     <div class="panel panel-default panel-overflowable">
                         <div class="panel-heading">
                             <a data-toggle="collapse" data-parent="#accordion" href="#collapseOne">
@@ -277,7 +277,26 @@
                     </div>
                 </div>
                 {% endif %}
+
             </div>
+
+            <!-- API Section -->
+            {% if the_user_is_band_admin or the_user_is_superuser %}
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <div class="panel-title">
+                        {% trans %}API Key{% endtrans %}
+                    </div>
+                </div>
+                <div id="api-key" class="panel-body">
+                  {% if the_band.api_key %}
+                    <p>{{ the_band.api_key }}</p>
+                  {% else %}
+                    <button type="button" class="btn btn-primary" id="generateapikey" onclick='generate_api_key()'>{% trans %}Generate{% endtrans %}</button>
+                  {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 {% endif %}
@@ -299,7 +318,7 @@
                                 <label for="newsectioninput" class="control-label">{% trans %}New Section{% endtrans %}</label>
                                 <input type="text form-control" id="newsectioninput" placeholder="Section Name" name="new_section">
                             </div>
-                        </form>                    
+                        </form>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">{% trans %}Cancel{% endtrans %}</button>
@@ -343,7 +362,7 @@
                                 <label for="newsectioninput" class="control-label">{% trans %}Rename Section{% endtrans %}</label>
                                 <input type="text form-control" id="renamesectioninput" placeholder="Section Name" name="new_section_name">
                             </div>
-                        </form>                    
+                        </form>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">{% trans %}Cancel{% endtrans %}</button>
@@ -354,7 +373,7 @@
         </div><!-- /.modal-dialog -->
 	</div><!-- /.modal -->
 
-	{% endif %}					
+	{% endif %}
 {% endblock modal %}
 
 {% block localscripts %}
@@ -460,11 +479,11 @@ function move(dir,sk) {
 function delete_section(name, sk) {
     $('#deletesectionname').html(name);
     $('#delsectionmodal').data('sectionkey',sk);
-    $('#delsectionmodal').modal('show');    
+    $('#delsectionmodal').modal('show');
 }
 
 function do_delete() {
-    $('#delsectionmodal').modal('hide');    
+    $('#delsectionmodal').modal('hide');
     sk=$('#delsectionmodal').data('sectionkey');
 
     $.post("/band_delete_section",
@@ -484,14 +503,14 @@ function do_delete() {
 function rename_section(name, sk) {
     $('#renamesectioninput').attr('value',name);
     $('#renamesectionmodal').data('sectionkey',sk);
-    $('#renamesectionmodal').modal('show');    
+    $('#renamesectionmodal').modal('show');
 }
 
 function handle_rename_section() {
-    $('#renamesectionmodal').modal('hide');    
+    $('#renamesectionmodal').modal('hide');
     sk=$('#renamesectionmodal').data('sectionkey');
     newname=$('#renamesectioninput').val();
-    
+
     $.post("/band_rename_section",
             {
                 sk: sk,
@@ -506,7 +525,6 @@ function handle_rename_section() {
 
     return false;
 }
-
 
 function member_section(mk, sk) {
     var bk='{{the_band.key.urlsafe()}}';
@@ -565,13 +583,30 @@ function occasional_select(ak) {
             });
 }
 
+function generate_api_key() {
+  $.post("/band_generate_api_key",
+          {
+              bk: "{{the_band.key.urlsafe()}}"
+          },
+          function(responseTxt,statusTxt,xhr){
+              if(statusTxt=="success")
+                  document.getElementById('api-key').innerHTML=responseTxt;
+              if(statusTxt=="error")
+                alert("Error: "+xhr.status+": "+xhr.statusText);
+          });
+
+  return false;
+}
+
+
+
 
 $(document).ready(function() {
     updateMembers();
     updateSections();
     updateUpcoming();
     updatePublic();
-    
+
     $("#newsection-modal-form").validate({
         rules: {
             new_section: {
@@ -580,9 +615,9 @@ $(document).ready(function() {
         },
         messages: {
             new_section: {
-                required: "{% trans %}This field is required!{% endtrans %}"                
-            }            
-        },        
+                required: "{% trans %}This field is required!{% endtrans %}"
+            }
+        },
         submitHandler: handle_new_section
     });
 
@@ -594,9 +629,9 @@ $(document).ready(function() {
         },
         messages: {
             new_section_name: {
-                required: "{% trans %}This field is required!{% endtrans %}"                
-            }            
-        },        
+                required: "{% trans %}This field is required!{% endtrans %}"
+            }
+        },
         submitHandler: handle_rename_section
     });
 

@@ -1,5 +1,5 @@
 #
-# band class for Gig-o-Matic 2 
+# band class for Gig-o-Matic 2
 #
 # Aaron Oppenheimer
 # 24 August 2013
@@ -22,6 +22,7 @@ import json
 import logging
 import datetime
 import stats
+import uuid
 from pytz.gae import pytz
 
 def band_key(band_name='band_key'):
@@ -53,6 +54,7 @@ class Band(ndb.Model):
     simple_planning = ndb.BooleanProperty(default=False)
     plan_feedback = ndb.TextProperty()
     show_in_nav = ndb.BooleanProperty(default=True)
+    api_key = ndb.StringProperty()
 
     @classmethod
     def lquery(cls, *args, **kwargs):
@@ -70,7 +72,7 @@ def forget_band_from_key(the_band_key):
     # delete all assocs
     the_assoc_keys = assoc.get_assocs_of_band_key(the_band_key, confirmed_only=False, keys_only=True)
     ndb.delete_multi(the_assoc_keys)
-    
+
     # delete the sections
     the_section_keys = get_section_keys_of_band_key(the_band_key)
     ndb.delete_multi(the_section_keys)
@@ -78,20 +80,20 @@ def forget_band_from_key(the_band_key):
     # delete the gigs
     the_gigs = gig.get_gigs_for_band_keys(the_band_key, num=None, start_date=None)
     the_gig_keys = [a_gig.key for a_gig in the_gigs]
-    
+
     # delete the plans
     for a_gig_key in the_gig_keys:
         plan_keys = plan.get_plan_keys_for_gig_key(a_gig_key)
         ndb.delete_multi(plan_keys)
-    
+
     ndb.delete_multi(the_gig_keys)
-    
+
     stats.delete_band_stats(the_band_key)
-    
+
     # delete the band
     the_band_key.delete()
 
-        
+
 def get_band_from_name(band_name):
     """ Return a Band object by name"""
     bands_query = Band.lquery(Band.name==band_name, ancestor=band_key())
@@ -101,7 +103,7 @@ def get_band_from_name(band_name):
         return band[0]
     else:
         return None
-        
+
 def get_band_from_condensed_name(band_name):
     """ Return a Band object by name"""
     bands_query = Band.lquery(Band.condensed_name==band_name.lower(), ancestor=band_key())
@@ -120,7 +122,7 @@ def get_band_from_id(id):
     """ Return band object by id"""
 
     return Band.get_by_id(int(id), parent=band_key()) # todo more efficient if we use the band because it's the parent?
-    
+
 def get_all_bands(keys_only=False):
     """ Return all objects"""
     bands_query = Band.lquery(ancestor=band_key()).order(Band.lower_name)
@@ -133,18 +135,18 @@ def get_section_keys_of_band_key(the_band_key):
 def get_assocs_of_band_key_by_section_key(the_band_key, include_occasional=True):
     the_assocs = assoc.get_confirmed_assocs_of_band_key(the_band_key, include_occasional=include_occasional)
     the_section_keys = get_section_keys_of_band_key(the_band_key)
-    
+
     the_info=[]
     for a_section_key in the_section_keys:
         the_section_info=[]
         for an_assoc in the_assocs:
             if an_assoc.default_section == a_section_key:
                 the_section_info.append(an_assoc)
-# *** 
+# ***
 # we always want to get the section, even if it's empty.
-#         if the_section_info: 
+#         if the_section_info:
         the_info.append( [a_section_key, the_section_info] )
-# *** 
+# ***
 
     # now look for empty section
     the_section_info=[]
@@ -155,9 +157,9 @@ def get_assocs_of_band_key_by_section_key(the_band_key, include_occasional=True)
         the_info.append( [None, the_section_info] )
 
     return the_info
-    
 
-    
+
+
 def new_section_for_band(the_band, the_section_name):
     the_section = Section(parent=the_band.key, name=the_section_name)
     the_section.put()
@@ -180,7 +182,7 @@ def delete_section_key(the_section_key):
         the_band.sections.pop(i)
         the_band.put()
     the_section_key.delete()
-    
+
     # todo The app doesn't let you delete a section unless it's empty. But for any gig,
     # it's possible that the user has previously specified that he wants to play in the
     # section to be deleted. So, find plans with the section set, and reset the section
@@ -207,25 +209,25 @@ class InfoPage(BaseHandler):
     """ class to produce the band info page """
 
 #     @user_required
-    def get(self, *args, **kwargs):    
+    def get(self, *args, **kwargs):
         """ make the band info page """
-        
+
         if 'band_name' in kwargs:
             band_name = kwargs['band_name']
             the_band = get_band_from_condensed_name(band_name)
             if the_band:
                 self._make_page(None, the_band)
             else:
-                return self.redirect('/')            
+                return self.redirect('/')
         else:
             if self.user:
                 self._make_page(the_user=self.user)
             else:
-                return self.redirect('/')            
+                return self.redirect('/')
 
     def _make_page(self,the_user,the_band=None):
         """ produce the info page """
-        
+
         # find the band we're interested in
         if the_band is None:
             band_key_str=self.request.get("bk", None)
@@ -238,7 +240,7 @@ class InfoPage(BaseHandler):
         if the_band is None:
             self.response.write('did not find a band!')
             return # todo figure out what to do if we didn't find it
-            
+
         if the_user is None:
             the_user_is_associated = False
             the_user_is_confirmed = False
@@ -247,7 +249,7 @@ class InfoPage(BaseHandler):
         else:
             the_user_is_associated = assoc.get_associated_status_for_member_for_band_key(the_user, the_band_key)
             the_user_is_confirmed = assoc.get_confirmed_status_for_member_for_band_key(the_user, the_band_key)
-            the_user_admin_status = assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key)   
+            the_user_admin_status = assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key)
             the_user_is_superuser = member.member_is_superuser(the_user)
 
         if the_user_admin_status or the_user_is_superuser:
@@ -281,7 +283,7 @@ class InfoPage(BaseHandler):
         self.render_template('band_info.html', template_args)
 
         # todo make sure the admin is really there
-        
+
 class EditPage(BaseHandler):
 
     @user_required
@@ -307,8 +309,8 @@ class EditPage(BaseHandler):
                 return
             else:
                 the_band_key=ndb.Key(urlsafe=the_band_key_str)
-            
-                the_user_admin_status = assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key)   
+
+                the_user_admin_status = assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key)
                 if not the_user_admin_status and not the_user_is_superuser:
                     return self.redirect('/')
 
@@ -324,32 +326,32 @@ class EditPage(BaseHandler):
             'is_new' : is_new
         }
         self.render_template('band_edit.html', template_args)
-                    
+
     def post(self):
         """post handler - if we are edited by the template, handle it here and redirect back to info page"""
 
         the_user = self.user
 
         the_band_key=self.request.get("bk",'0')
-        
+
         if the_band_key=='0':
             # it's a new band
             the_band=new_band('tmp')
         else:
             the_band=ndb.Key(urlsafe=the_band_key).get()
-            
+
         if the_band is None:
             self.response.write('did not find a band!')
             return # todo figure out what to do if we didn't find it
-       
+
         band_name=self.request.get("band_name",None)
         if band_name is not None and band_name != '':
             the_band.name=band_name
-                
+
         band_shortname=self.request.get("band_shortname",None)
         if band_shortname is not None:
             the_band.shortname=band_shortname
-                
+
         website=self.request.get("band_website",None)
         if website[0:7]=='http://':
             the_band.website = website[7:]
@@ -357,7 +359,7 @@ class EditPage(BaseHandler):
             the_band.website = website
 
         the_band.thumbnail_img=self.request.get("band_thumbnail",None)
-        
+
         image_blob = self.request.get("band_images",None)
         image_split = image_blob.split("\n")
         image_urls=[]
@@ -366,7 +368,7 @@ class EditPage(BaseHandler):
             if the_iu:
                 image_urls.append(the_iu)
         the_band.images=image_urls
-        
+
         member_links_blob = self.request.get("band_member_links",None)
         if member_links_blob is not None:
             the_band.member_links=member_links_blob
@@ -374,7 +376,7 @@ class EditPage(BaseHandler):
         the_band.hometown=self.request.get("band_hometown",None)
 
         the_band.description=self.request.get("band_description",None)
-            
+
         manage_gigs=self.request.get("band_anyonecanmanagegigs",None)
         if (manage_gigs):
             the_band.anyone_can_manage_gigs = True
@@ -386,7 +388,7 @@ class EditPage(BaseHandler):
             the_band.share_gigs = True
         else:
             the_band.share_gigs = False
-            
+
         simple_plan=self.request.get("band_simpleplan",None)
         if (simple_plan):
             the_band.simple_planning = True
@@ -401,10 +403,10 @@ class EditPage(BaseHandler):
         if band_timezone is not None and band_timezone != '':
             the_band.timezone=band_timezone
 
-        the_band.put()            
+        the_band.put()
 
         return self.redirect('/band_info.html?bk={0}'.format(the_band.key.urlsafe()))
-        
+
 
 
 class InvitePage(BaseHandler):
@@ -432,7 +434,7 @@ class InvitePage(BaseHandler):
             'the_band' : the_band
         }
         self.render_template('band_invite.html', template_args)
-                    
+
     def post(self):
         """post handler - if we are edited by the template, handle it here and redirect back to info page"""
 
@@ -442,54 +444,54 @@ class InvitePage(BaseHandler):
         if the_band_key_url is None:
             self.response.write('did not find a band!')
             return # todo figure out what to do if we didn't find it
-       
+
         the_band_key=ndb.Key(urlsafe=the_band_key_url)
-        if not assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key) and not the_user.is_superuser:  
+        if not assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key) and not the_user.is_superuser:
             return self.redirect('/band_info.html?bk={0}'.format(the_band.key.urlsafe()))
 
         return self.redirect('/band_info.html?bk={0}'.format(the_band.key.urlsafe()))
 
 class DeleteBand(BaseHandler):
     """ completely delete band """
-    
+
     @user_required
     def get(self):
         """ post handler - wants a bk """
-        
+
         the_band_keyurl=self.request.get('bk','0')
 
         if the_band_keyurl=='0':
             return # todo figure out what to do
 
         the_band_key=ndb.Key(urlsafe=the_band_keyurl)
-        
+
         the_user = self.user # todo - make sure the user is a superuser
         if (the_user.is_superuser):
             forget_band_from_key(the_band_key)
 
         return self.redirect('/band_admin.html')
-        
-class BandGetMembers(BaseHandler):
-    """ returns the members related to a band """                   
 
-    def post(self):    
+class BandGetMembers(BaseHandler):
+    """ returns the members related to a band """
+
+    def post(self):
         """ return the members for a band """
         the_user = self.user
 
         the_band_key_str=self.request.get('bk','0')
-        
+
         if the_band_key_str=='0':
             return # todo figure out what to do
-            
+
         the_band_key = ndb.Key(urlsafe=the_band_key_str)
 
         assocs = assoc.get_assocs_of_band_key(the_band_key=the_band_key, confirmed_only=True)
         the_members = ndb.get_multi([a.member for a in assocs])
-        
+
         the_members = sorted(the_members,key=lambda member: member.lower_name)
         # now sort the assocs to be in the same order as the member list
         assocs = sorted(assocs,key=lambda a: [m.key for m in the_members].index(a.member))
-        
+
         assoc_info=[]
         the_user_is_band_admin = False
         for i in range(0,len(assocs)):
@@ -500,17 +502,17 @@ class BandGetMembers(BaseHandler):
             else:
                 s = None
 
-            assoc_info.append( {'name':(m.nickname if m.nickname else m.name), 
-                                'is_confirmed':a.is_confirmed, 
-                                'is_band_admin':a.is_band_admin, 
+            assoc_info.append( {'name':(m.nickname if m.nickname else m.name),
+                                'is_confirmed':a.is_confirmed,
+                                'is_band_admin':a.is_band_admin,
                                 'is_occasional':a.is_occasional,
-                                'member_key':a.member, 
-                                'section':s, 
-                                'is_multisectional':a.is_multisectional, 
+                                'member_key':a.member,
+                                'section':s,
+                                'is_multisectional':a.is_multisectional,
                                 'assoc':a} )
             if a.member == the_user.key:
                 the_user_is_band_admin = a.is_band_admin
-                        
+
         the_section_keys = the_band_key.get().sections
         the_sections = ndb.get_multi(the_section_keys)
 
@@ -523,17 +525,17 @@ class BandGetMembers(BaseHandler):
         self.render_template('band_members.html', template_args)
 
 class BandGetSections(BaseHandler):
-    """ returns the sections related to a band """                   
+    """ returns the sections related to a band """
 
-    def post(self):    
+    def post(self):
         """ return the sections for a band """
         the_user = self.user
 
         the_band_key_str=self.request.get('bk','0')
-        
+
         if the_band_key_str=='0':
             return # todo figure out what to do
-            
+
         the_band_key = ndb.Key(urlsafe=the_band_key_str)
         the_band = the_band_key.get()
         the_members_by_section = get_assocs_of_band_key_by_section_key(the_band_key)
@@ -544,7 +546,7 @@ class BandGetSections(BaseHandler):
         the_user_is_band_admin = assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key)
 
         num_sections=len(the_band.sections)
-                
+
         template_args = {
             'the_band' : the_band,
             'the_section_count' : len(the_members_by_section),
@@ -555,11 +557,11 @@ class BandGetSections(BaseHandler):
         self.render_template('band_sections.html', template_args)
 
 class NewSection(BaseHandler):
-    """ makes a new section for a band """                   
+    """ makes a new section for a band """
 
-    def post(self):    
+    def post(self):
         """ makes a new assoc for a member """
-        
+
         the_user = self.user
 
         the_section_name=self.request.get('section_name','0')
@@ -567,27 +569,27 @@ class NewSection(BaseHandler):
 
         if the_section_name=='0' or the_band_key_str=='0':
             return # todo figure out what to do
-            
+
         the_band_key = ndb.Key(urlsafe=the_band_key_str)
-        
+
         if not is_authorized_to_edit_band(the_band_key,the_user):
             return
 
         the_band=the_band_key.get()
-        
+
         new_section_for_band(the_band, the_section_name)
 
 class DeleteSection(BaseHandler):
-    """ makes a new section for a band """                   
+    """ makes a new section for a band """
 
-    def post(self):    
+    def post(self):
         """ makes a new assoc for a member """
-                
+
         the_user = self.user
-        #todo - make sure it's a band admin or superuser    
-        
+        #todo - make sure it's a band admin or superuser
+
         the_section_key_url=self.request.get('sk','0')
-        
+
         if the_section_key_url=='0':
             return # todo figure out what to do
 
@@ -595,23 +597,23 @@ class DeleteSection(BaseHandler):
 
         the_band_key=the_section_key.parent()
         if not is_authorized_to_edit_band(the_band_key,the_user):
-            return        
-        
+            return
+
         delete_section_key(the_section_key)
 
 class MoveSection(BaseHandler):
-    """ move a section for a band """                   
+    """ move a section for a band """
 
     @user_required
-    def post(self):    
+    def post(self):
         """ moves a section """
-        
+
         the_user = self.user
-        #todo - make sure it's a band admin or superuser    
-        
+        #todo - make sure it's a band admin or superuser
+
         the_direction=self.request.get('dir','0')
         the_section_key_str=self.request.get('sk','0')
-        
+
         the_section_key=ndb.Key(urlsafe=the_section_key_str)
         the_section=the_section_key.get()
 
@@ -620,7 +622,7 @@ class MoveSection(BaseHandler):
             return
 
         the_band=the_section_key.parent().get()
-        
+
         band_sections = the_band.sections
         if the_section_key in band_sections:
             i = band_sections.index(the_section_key)
@@ -629,62 +631,62 @@ class MoveSection(BaseHandler):
                 band_sections.insert(i-1, the_section_key)
             else:
                 band_sections.insert(i+1, the_section_key)
-        
+
             the_band.sections=band_sections
             the_band.put()
         else:
             print 'not in band'
-        
+
 class RenameSection(BaseHandler):
     """ rename a section """
-    
+
     @user_required
     def post(self):
         """ moves a section """
-                
+
         the_user = self.user
 
         the_section_key_url=self.request.get('sk','0')
-        
+
         if the_section_key_url=='0':
             return # todo figure out what to do
 
         the_section_key=ndb.Key(urlsafe=the_section_key_url)
-        
+
         the_band_key=the_section_key.parent()
         if not is_authorized_to_edit_band(the_band_key,the_user):
-            return                
-        
+            return
+
         the_newname=self.request.get('newname','')
 
         if not the_newname:
             return # todo figure out what to do
-            
+
         the_section = the_section_key.get()
         the_section.name = the_newname
         the_section.put()
-    
+
 class ConfirmMember(BaseHandler):
     """ move a member from pending to 'real' member """
-    
+
     @user_required
     def get(self):
         """ handles the 'confirm member' button in the band info page """
-        
+
         the_user = self.user
 
         the_member_keyurl=self.request.get('mk','0')
         the_band_keyurl=self.request.get('bk','0')
-        
+
         if the_member_keyurl=='0' or the_band_keyurl=='0':
             return # todo what to do?
-            
+
         the_member_key=ndb.Key(urlsafe=the_member_keyurl)
         the_band_key=ndb.Key(urlsafe=the_band_keyurl)
 
         if not is_authorized_to_edit_band(the_band_key,the_user):
-            return                
-                    
+            return
+
         the_member = the_member_key.get()
         assoc.confirm_member_for_band_key(the_member, the_band_key)
         # if the user happens to be logged in, invalidate his cached list of bands and
@@ -695,14 +697,14 @@ class ConfirmMember(BaseHandler):
         goemail.send_band_accepted_email(self, the_member.email_address, the_band)
 
         return self.redirect('/band_info.html?bk={0}'.format(the_band_keyurl))
-        
+
 class AdminMember(BaseHandler):
     """ grant or revoke admin rights """
-    
+
     @user_required
     def post(self):
         """ post handler - wants a member key and a band key, and a flag """
-        
+
         the_user = self.user
 
         the_assoc_keyurl=self.request.get('ak','0')
@@ -714,22 +716,22 @@ class AdminMember(BaseHandler):
         the_assoc = ndb.Key(urlsafe=the_assoc_keyurl).get()
 
         if not is_authorized_to_edit_band(the_assoc.band,the_user):
-            return                
+            return
 
         the_assoc.is_band_admin = (the_do=='true')
         the_assoc.put()
-        
+
         # if the user happens to be logged in, invalidate his cached list of bands and
         # bands for which he can edit gigs
         the_assoc.member.get().invalidate_member_bandlists(self, the_assoc.member)
-        
+
 class MakeOccasionalMember(BaseHandler):
     """ grant or revoke occasional status """
-    
+
     @user_required
     def post(self):
         """ post handler - wants a member key and a band key, and a flag """
-        
+
         the_user = self.user
 
         the_assoc_keyurl=self.request.get('ak','0')
@@ -739,18 +741,18 @@ class MakeOccasionalMember(BaseHandler):
             return # todo figure out what to do
 
         the_assoc = ndb.Key(urlsafe=the_assoc_keyurl).get()
-        
+
         if is_authorized_to_edit_band(the_assoc.band,the_user) or the_user.key == the_assoc.member:
             the_assoc.is_occasional = (the_do=='true')
             the_assoc.put()
 
 class RemoveMember(BaseHandler):
     """ user quits band """
-    
+
     @user_required
     def get(self):
         """ post handler - wants an ak """
-        
+
         the_user = self.user
 
         the_member_keyurl=self.request.get('mk','0')
@@ -761,10 +763,10 @@ class RemoveMember(BaseHandler):
 
         the_member_key = ndb.Key(urlsafe=the_member_keyurl)
         the_band_key = ndb.Key(urlsafe=the_band_keyurl)
-        
+
         if not is_authorized_to_edit_band(the_band_key,the_user):
-            return                
-        
+            return
+
         # find the association between band and member
         the_assoc=assoc.get_assoc_for_band_key_and_member_key(the_member_key, the_band_key)
         assoc.delete_association_from_key(the_assoc.key)
@@ -776,18 +778,18 @@ class AdminPage(BaseHandler):
     """ Page for band administration """
 
     @user_required
-    def get(self):    
+    def get(self):
         if member.member_is_superuser(self.user):
             self._make_page(the_user=self.user)
         else:
-            return self.redirect('/')            
-                
+            return self.redirect('/')
+
     def _make_page(self,the_user):
-    
+
         # todo make sure the user is a superuser
-        
+
         the_bands = get_all_bands()
-        
+
         template_args = {
             'the_bands' : the_bands,
         }
@@ -811,14 +813,14 @@ class GigArchivePage(BaseHandler):
         # make sure this member is actually in the band
         if assoc.confirm_user_is_member(the_user.key, the_band_key) is None:
             return
-        
+
         the_band = the_band_key.get()
         if the_band is None:
             self.response.write('did not find a band!')
             return # todo figure out what to do if we didn't find it
 
         the_gigs = gig.get_gigs_for_band_keys(the_band_key, show_past=True)
-        
+
         template_args = {
             'the_user' : the_user,
             'the_band' : the_band,
@@ -826,7 +828,7 @@ class GigArchivePage(BaseHandler):
             'the_date_formatter' : member.format_date_for_member
         }
         self.render_template('band_gig_archive.html', template_args)
-        
+
 
 class GetMemberList(BaseHandler):
     """ service function to return a list of member names """
@@ -841,7 +843,7 @@ class GetMemberList(BaseHandler):
             the_band_key = ndb.Key(urlsafe=the_band_keyurl)
             the_member_keys = assoc.get_member_keys_of_band_key(the_band_key)
             response_val = [ [x.get().name, x.urlsafe()] for x in the_member_keys ]
-            
+
         self.response.write(json.dumps(response_val))
 
 
@@ -853,7 +855,7 @@ class BandNavPage(BaseHandler):
 
     def make_page(self, the_user):
         the_bands = get_all_bands()
-    
+
         template_args = {
             'the_bands' : the_bands,
         }
@@ -871,9 +873,9 @@ class GetUpcoming(BaseHandler):
 
         today_date = datetime.datetime.now()
         the_gigs = gig.get_gigs_for_band_keys(the_band_key, start_date=today_date)
-        
+
         the_gigs = [g for g in the_gigs if g.is_confirmed and not g.is_private]
-        
+
         template_args = {
             'the_gigs' : the_gigs,
         }
@@ -891,8 +893,8 @@ class GetPublicMembers(BaseHandler):
 
         the_member_keys = assoc.get_member_keys_of_band_key(the_band_key)
         the_members = ndb.get_multi(the_member_keys)
-        the_public_members = [x for x in the_members if x.preferences and x.preferences.share_profile and x.verified]        
-        
+        the_public_members = [x for x in the_members if x.preferences and x.preferences.share_profile and x.verified]
+
         template_args = {
             'the_members' : the_public_members
         }
@@ -914,14 +916,14 @@ class SendInvites(BaseHandler):
         out=''
         if not assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key) and not the_user.is_superuser:
             out='not admin'
-                    
-        the_email_blob = self.request.get('e','')    
+
+        the_email_blob = self.request.get('e','')
 
         # remove commas and stuff
         the_email_blob = the_email_blob.replace(',',' ')
         the_email_blob = the_email_blob.replace('\n',' ')
         the_emails = the_email_blob.split(' ')
-        
+
         ok_email = []
         not_ok_email = []
         for e in the_emails:
@@ -930,7 +932,7 @@ class SendInvites(BaseHandler):
                     ok_email.append(e)
                 else:
                     not_ok_email.append(e)
-                    
+
         # ok, now we have a list of good email addresses (or, at least, well-formed email addresses
         # for each one, create a new member
         for e in ok_email:
@@ -950,23 +952,48 @@ class SendInvites(BaseHandler):
                 # send email inviting them to the gig-o
                 token = self.user_model.create_invite_token(the_user.get_id())
                 verification_url = self.uri_for('inviteverification', type='i', user_id=the_user.get_id(),
-                    signup_token=token, _full=True)  
-                    
+                    signup_token=token, _full=True)
+
                 print '\n\n{0}\n\n'.format(verification_url)
-                                  
-                goemail.send_gigo_invite_email(self, the_band, the_user, verification_url)                
+
+                goemail.send_gigo_invite_email(self, the_band, the_user, verification_url)
 
                 # set the new users's local to be the same as mine by default.
                 if the_user.preferences.locale != self.user.preferences.locale:
                     the_user.preferences.locale = self.user.preferences.locale
                     the_user.put()
-                
+
         template_args = {
             'the_band_keyurl' : the_band_keyurl,
             'the_ok' : ok_email,
             'the_not_ok' : not_ok_email
         }
         self.render_template('band_invite_result.html', template_args)
+
+class GenerateApiKey(BaseHandler):
+    """ generates an api key for the band """
+
+    @user_required
+    def post(self):
+        """ generate api key """
+        the_band_keyurl=self.request.get('bk','0')
+
+        if the_band_keyurl=='0':
+            return # todo figure out what to do
+
+        the_band_key = ndb.Key(urlsafe=the_band_keyurl)
+        the_user = self.user
+        if not is_authorized_to_edit_band(the_band_key,the_user):
+            return
+
+        the_band = the_band_key.get()
+        uid = uuid.uuid4()
+        the_band.api_key = uid.hex
+        the_band.put()
+
+        self.response.write(uid.hex)
+
+
 
 def is_authorized_to_edit_band(the_band_key, the_user):
     if assoc.get_admin_status_for_member_for_band_key(the_user, the_band_key) or the_user.is_superuser:

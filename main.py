@@ -130,6 +130,7 @@ else:
         webapp2.Route('/band_send_invites', band.SendInvites),
         webapp2.Route('/band_activity', activity.MainPage),
         webapp2.Route('/band_gig_archive', band.GigArchivePage),
+        webapp2.Route('/band_generate_api_key', band.GenerateApiKey),
         webapp2.Route('/calevents', calview.CalEvents),
         webapp2.Route('/updateplan', plan.UpdatePlan),
         webapp2.Route('/updateplanfeedback', plan.UpdatePlanFeedback),
